@@ -1,5 +1,4 @@
 import json
-import random
 import re
 import urllib.error
 import urllib.parse
@@ -104,7 +103,6 @@ class CPGLLMOptions:
                 # think有効時は思考トークンもこの枠を消費するため大きめを既定に
                 "num_predict": ("INT", {"default": 4096, "min": 1, "max": 65536}),
                 "num_ctx": ("INT", {"default": 8192, "min": 512, "max": 262144}),
-                "seed": ("INT", {"default": 0, "min": 0, "max": MAX_SEED, "control_after_generate": True}),
                 "keep_alive_min": ("INT", {"default": 5, "min": 0, "max": 1440}),
             }
         }
@@ -113,13 +111,12 @@ class CPGLLMOptions:
     FUNCTION = "build"
     CATEGORY = CATEGORY
 
-    def build(self, temperature, top_p, num_predict, num_ctx, seed, keep_alive_min):
+    def build(self, temperature, top_p, num_predict, num_ctx, keep_alive_min):
         return ({
             "temperature": temperature,
             "top_p": top_p,
             "num_predict": num_predict,
             "num_ctx": num_ctx,
-            "seed": seed,
             "keep_alive_min": keep_alive_min,
         },)
 
@@ -156,6 +153,9 @@ class CPGGenerate:
                 "characters": ("CHARACTER_LIST",),
                 "scene": ("STRING", {"multiline": True, "default": ""}),
                 "think": ("BOOLEAN", {"default": True}),
+                # seedはOptionsではなくここに置く。ウィジェット値は定数としてキャッシュ判定に
+                # 乗るので、fixedならLLMを呼び直さず、randomizeなら毎回再生成される
+                "seed": ("INT", {"default": 0, "min": 0, "max": MAX_SEED, "control_after_generate": True}),
             },
             "optional": {
                 "options": ("LLM_OPTIONS",),
@@ -167,15 +167,7 @@ class CPGGenerate:
     FUNCTION = "generate"
     CATEGORY = CATEGORY
 
-    @classmethod
-    def IS_CHANGED(cls, options=None, **kwargs):
-        # Options未接続時はseedを毎回ランダムにするため常に再実行。
-        # 接続時はOptions側のseed (control_after_generate) に委ねる。
-        if options is None:
-            return float("nan")
-        return 0.0
-
-    def generate(self, connection, characters, scene, think, options=None):
+    def generate(self, connection, characters, scene, think, seed, options=None):
         if not connection.get("model"):
             raise RuntimeError("No model selected on the LLM Connection node.")
         if not characters:
@@ -187,7 +179,6 @@ class CPGGenerate:
                 "top_p": 0.9,
                 "num_predict": 4096,
                 "num_ctx": 8192,
-                "seed": random.randint(0, MAX_SEED),
                 "keep_alive_min": 5,
             }
 
@@ -216,7 +207,7 @@ class CPGGenerate:
                 "top_p": options["top_p"],
                 "num_predict": options["num_predict"],
                 "num_ctx": options["num_ctx"],
-                "seed": options["seed"],
+                "seed": seed,
             },
         }
 
@@ -241,6 +232,36 @@ class CPGGenerate:
                 "Increase num_predict on the LLM Options node, or turn think off."
             )
         return (content, thinking.strip())
+
+
+class CPGTextConcat:
+    @classmethod
+    def INPUT_TYPES(cls):
+        return {
+            "required": {
+                "text": ("STRING", {"forceInput": True}),
+                "added_text": ("STRING", {"multiline": True, "default": ""}),
+                "position": (["append", "prepend"], {}),
+                "separator": ("STRING", {"default": ", "}),
+            }
+        }
+
+    RETURN_TYPES = ("STRING",)
+    RETURN_NAMES = ("text",)
+    FUNCTION = "concat"
+    CATEGORY = CATEGORY
+
+    def concat(self, text, added_text, position, separator):
+        # 1行ウィジェットでは改行を直接入力できないため、\n と \t を解釈する
+        separator = separator.replace("\\n", "\n").replace("\\t", "\t")
+        # 片方が空ならセパレータを挟まずそのまま返す
+        if not text:
+            return (added_text,)
+        if not added_text:
+            return (text,)
+        if position == "prepend":
+            return (f"{added_text}{separator}{text}",)
+        return (f"{text}{separator}{added_text}",)
 
 
 # ---------------------------------------------------------------------------
@@ -290,6 +311,7 @@ NODE_CLASS_MAPPINGS = {
     "CPG_LLMOptions": CPGLLMOptions,
     "CPG_Character": CPGCharacter,
     "CPG_Generate": CPGGenerate,
+    "CPG_TextConcat": CPGTextConcat,
 }
 
 NODE_DISPLAY_NAME_MAPPINGS = {
@@ -297,4 +319,5 @@ NODE_DISPLAY_NAME_MAPPINGS = {
     "CPG_LLMOptions": "LLM Options",
     "CPG_Character": "Character",
     "CPG_Generate": "Generate Character Prompt",
+    "CPG_TextConcat": "Text Concat",
 }

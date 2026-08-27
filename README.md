@@ -39,7 +39,7 @@ A ComfyUI custom node that uses a local LLM (Ollama) to build image generation p
    - **Character**: Input `name` and `attributes`. For multiple characters, chain additional Character nodes via the `prev` slot.
    - **Generate Character Prompt**: Enter the scene description in `scene`.
    - **Output (`prompt`)**: Connect the output to text encoding nodes (e.g., CLIP Text Encode).
-3. (Optional) To fix prompt output reproducibility, attach **LLM Options** and set `seed` to `fixed`.
+3. To keep the same prompt while re-rolling the image generation (e.g. fixing the prompt and varying only Anima's seed), set `seed` on the **Generate Character Prompt** node to `fixed` — the cached prompt is reused without calling the LLM again.
 
 ## Troubleshooting
 
