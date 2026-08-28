@@ -16,6 +16,10 @@ Imagine the characters' situation as it naturally unfolds from this context, and
 This general scene setting allows for diverse interpretations regarding location, action, time, and circumstances.
 Ensure that the clothing and facial expressions are appropriate for the scene.
 
+Translate abstract or subjective words in the SCENE (cute, cool, dramatic, emotional...)
+into concrete, observable visual elements (specific pose, expression, lighting, color, composition).
+Abstract mood words must never appear in the output.
+
 Do not include story details or dialogue.
 Explanations of reasons or intentions are also unnecessary.
 
