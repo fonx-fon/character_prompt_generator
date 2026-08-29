@@ -4,7 +4,7 @@ import urllib.error
 import urllib.parse
 import urllib.request
 
-from .prompts import DEFAULT_SYSTEM_PROMPT
+from .prompts import SYSTEM_PROMPTS
 
 DEFAULT_URL = "http://127.0.0.1:11434"
 CATEGORY = "CharacterPromptGenerator"
@@ -153,12 +153,15 @@ class CPGGenerate:
                 "characters": ("CHARACTER_LIST",),
                 "scene": ("STRING", {"multiline": True, "default": ""}),
                 "think": ("BOOLEAN", {"default": True}),
+                # strict: 服装も含め一切改変しない / adaptive: 服装だけシーンに合わせて可変
+                "outfit": (["strict", "adaptive"], {}),
                 # seedはOptionsではなくここに置く。ウィジェット値は定数としてキャッシュ判定に
                 # 乗るので、fixedならLLMを呼び直さず、randomizeなら毎回再生成される
                 "seed": ("INT", {"default": 0, "min": 0, "max": MAX_SEED, "control_after_generate": True}),
             },
             "optional": {
                 "options": ("LLM_OPTIONS",),
+                "system_prompt": ("STRING", {"forceInput": True}),
             },
         }
 
@@ -167,7 +170,7 @@ class CPGGenerate:
     FUNCTION = "generate"
     CATEGORY = CATEGORY
 
-    def generate(self, connection, characters, scene, think, seed, options=None):
+    def generate(self, connection, characters, scene, think, outfit, seed, options=None, system_prompt=None):
         if not connection.get("model"):
             raise RuntimeError("No model selected on the LLM Connection node.")
         if not characters:
@@ -193,10 +196,13 @@ class CPGGenerate:
         blocks.append(f"[SCENE]\n{scene.strip()}")
         user_prompt = "\n\n".join(blocks)
 
+        # system_prompt接続時は内蔵プロンプトを丸ごと差し替える (空なら内蔵プリセットを使う)
+        system = system_prompt.strip() if system_prompt and system_prompt.strip() else SYSTEM_PROMPTS[outfit]
+
         payload = {
             "model": connection["model"],
             "messages": [
-                {"role": "system", "content": DEFAULT_SYSTEM_PROMPT},
+                {"role": "system", "content": system},
                 {"role": "user", "content": user_prompt},
             ],
             "think": think,
